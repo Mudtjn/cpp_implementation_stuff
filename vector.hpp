@@ -38,7 +38,6 @@ public:
   ~Vector();
 
   ////////////// MODIFIERS //////////////////////
-  void push_back(value_type x);
   void push_back(const_reference x);
   void push_back(rvalue x);
   void pop_back();
@@ -139,9 +138,7 @@ template <typename T> void Vector<T>::shrink_to_fit_internal() {
 ///////////////////////////////////////////////
 //////////////// CONSTRUCTORS /////////////////
 ///////////////////////////////////////////////
-template <typename T> Vector<T>::Vector() : arr(nullptr), sz(0), cap(0) {
-  std::cout << "default\n" << std::endl;
-}
+template <typename T> Vector<T>::Vector() : arr(nullptr), sz(0), cap(0) {}
 template <typename T> Vector<T>::Vector(size_type size) : sz(size), cap(size) {
   arr = new T[cap];
 }
@@ -182,7 +179,6 @@ Vector<T>::Vector(Vector &&other) noexcept
 ////////////// ASSIGNMENTS ////////////////////
 ///////////////////////////////////////////////
 template <typename T> Vector<T> &Vector<T>::operator=(Vector &other) {
-  std::cout << "copy\n" << std::endl;
 
   sz = other.size();
   cap = other.capacity();
@@ -204,7 +200,6 @@ template <typename T> Vector<T> &Vector<T>::operator=(Vector &other) {
   return *this;
 }
 template <typename T> Vector<T> &Vector<T>::operator=(Vector &&other) {
-  std::cout << "move\n" << std::endl;
   if (this == &other) {
     return *this;
   }
@@ -282,12 +277,6 @@ template <typename T> void Vector<T>::shrink_to_fit() {
 }
 
 ////////////// MODIFIERS //////////////////////
-template <typename T> void Vector<T>::push_back(value_type x) {
-  if (size() == capacity()) {
-    expandArray();
-  }
-  arr[size()] = x;
-}
 template <typename T> void Vector<T>::push_back(const_reference x) {
   if (size() == capacity()) {
     expandArray();
