@@ -1,5 +1,5 @@
+#include <algorithm>
 #include <cstddef>
-#include <iostream>
 #include <iterator>
 #include <stdexcept>
 
@@ -70,6 +70,7 @@ public:
    */
   void resize(size_type count);
   void resize(size_type count, const_reference value);
+  void resize(size_type count, const_rvalue value);
 
   /////////////// ELEMENTS ACCESS //////////////
   // to be allowed to be replaced
@@ -84,12 +85,12 @@ public:
   iterator begin();
   const_iterator cbegin() const;
   iterator end();
-  const_iterator cend();
+  const_iterator cend() const;
   reverse_iterator rbegin();
   const_reverse_iterator rbegin() const;
   const_reverse_iterator crebgin() const noexcept;
   reverse_iterator rend();
-  reverse_iterator rend() const;
+  const_reverse_iterator rend() const;
   const_reverse_iterator crend() const noexcept;
 
   //////////////// CAPACITY ///////////////////
@@ -107,7 +108,17 @@ private:
   void expandArray();
   void reserve_internal(size_type new_cap);
   void shrink_to_fit_internal();
+  // this assumes new_size > old_size
+  void resize_internal(size_type new_cap); 
 };
+
+template <typename T> void Vector<T>::resize_internal(size_type new_cap) {
+  T* arr2 {new T[new_cap]};
+  cap = new_cap; 
+  std::copy(arr, arr+sz, arr2); 
+  delete []arr; 
+  arr = arr2; 
+}
 
 template <typename T> void Vector<T>::expandArray() {
   if (cap == 0)
@@ -122,6 +133,7 @@ template <typename T> void Vector<T>::expandArray() {
 template <typename T> void Vector<T>::reserve_internal(std::size_t new_cap) {
   // create new storage of cap = new_cap
   T *arr2{new T[new_cap]};
+  cap = new_cap; 
   std::copy(arr, arr + sz, arr2);
   delete[] arr;
   arr = arr2;
@@ -230,13 +242,13 @@ template <typename T> Vector<T>::~Vector() {
 // to be allowed to be replaced
 template <typename T> T &Vector<T>::at(size_type indx) {
   if (indx >= sz)
-    return std::out_of_range("Out of index range");
+    throw std::out_of_range("Out of index range");
   return arr[indx];
 }
 template <typename T>
 typename Vector<T>::const_reference Vector<T>::at(size_type indx) const {
   if (indx >= sz)
-    return std::out_of_range("Out of index range");
+    throw std::out_of_range("Out of index range");
   return arr[indx];
 }
 template <typename T>
@@ -281,13 +293,14 @@ template <typename T> void Vector<T>::push_back(const_reference x) {
   if (size() == capacity()) {
     expandArray();
   }
-  arr[size()] = T{x};
+  // std::cout << "capacity: " << capacity() << std::endl;
+  arr[sz++] = T{x};
 }
 template <typename T> void Vector<T>::push_back(rvalue x) {
   if (size() == capacity()) {
     expandArray();
   }
-  arr[size()] = T{x};
+  arr[sz++] = T{x};
 }
 template <typename T> void Vector<T>::pop_back() {
   if (size() == 0) {
@@ -313,9 +326,8 @@ template <typename T> void Vector<T>::resize(size_type count) {
   } else if (size() > count) {
     sz = count;
   } else {
-    for (auto i{size()}; i < count; i++) {
-      push_back(T{});
-    }
+    resize_internal(count); 
+    sz = count; 
   }
 }
 template <typename T>
@@ -325,12 +337,29 @@ void Vector<T>::resize(size_type count, const_reference value) {
   } else if (size() > count) {
     throw std::logic_error("current size of vector > count");
   } else {
-    for (auto i{size()}; i < count; i++) {
+    auto x = size(); 
+    resize_internal(count); 
+    for (auto i{x}; i < count; i++) {
       push_back(T{value});
     }
+    sz = count; 
   }
 }
-
+template <typename T>
+void Vector<T>::resize(size_type count, const_rvalue value) {
+  if (size() == count) {
+    return;
+  } else if (size() > count) {
+    throw std::logic_error("current size of vector > count");
+  } else {
+    auto x = size(); 
+    resize_internal(count); 
+    for (auto i{x}; i < count; i++) {
+      push_back(T{value});
+    }
+    sz = count; 
+  }
+}
 ///////////////////////////////////////////////////
 ///////////////// ITERATORS ///////////////////////
 ///////////////////////////////////////////////////
@@ -345,29 +374,30 @@ typename Vector<T>::const_iterator Vector<T>::cbegin() const {
 template <typename T> typename Vector<T>::iterator Vector<T>::end() {
   return arr + size();
 }
-template <typename T> typename Vector<T>::const_iterator Vector<T>::cend() {
-  return arr + size();
+template <typename T> typename Vector<T>::const_iterator Vector<T>::cend() const {
+  return (arr + size());
 }
-template <typename T> typename Vector<T>::reverse_iterator Vector<T>::rbegin() {
-  return std::reverse_iterator(end());
+template <typename T> typename Vector<T>::const_reverse_iterator
+Vector<T>::rbegin() const {
+  return std::reverse_iterator(cend());
 }
 template <typename T>
-typename Vector<T>::const_reverse_iterator Vector<T>::rbegin() const {
-  return std::reverse_iterator(cend());
+typename Vector<T>::reverse_iterator Vector<T>::rbegin() {
+  return std::reverse_iterator(end());
 }
 template <typename T>
 typename Vector<T>::const_reverse_iterator Vector<T>::crebgin() const noexcept {
   return std::reverse_iterator(cend());
 }
-template <typename T> typename Vector<T>::reverse_iterator Vector<T>::rend() {
-  return std::reverse_iterator(begin());
+template <typename T> typename Vector<T>::const_reverse_iterator Vector<T>::rend() const
+{
+  return std::reverse_iterator(cbegin());
 }
 template <typename T>
-typename Vector<T>::reverse_iterator Vector<T>::rend() const {
-  return std::reverse_iterator(cbegin());
+typename Vector<T>::reverse_iterator Vector<T>::rend() {
+  return std::reverse_iterator(begin());
 }
 template <typename T>
 typename Vector<T>::const_reverse_iterator Vector<T>::crend() const noexcept {
   return std::reverse_iterator(cbegin());
 }
-
