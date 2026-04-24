@@ -25,7 +25,7 @@ add_library(vector_lib vector.cpp)
 target_include_directories(vector_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(vector_unit_tests vector_unit_test.cpp)
-target_link_libraries(vector_unit_tests PRIVATE vector_lib GTest::gtest_main)
+target_link_libraries(vector_unit_tests PRIVATE vector_lib GTest::gtest)
 
 include(GoogleTest)
 gtest_discover_tests(vector_unit_tests)

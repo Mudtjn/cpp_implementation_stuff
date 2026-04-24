@@ -172,10 +172,12 @@ TEST(CustomVectorTest, ResizeLargerValueDefault) {
   // on T
 }
 
-// TEST(CustomVectorTest, ResizeWithValueThrowsWhenShrinking) {
-//  Vector<int> v1{1, 2, 3, 4};
-// EXPECT_THROW(v1.resize(2, 10), std::logic_error);
-//}
+TEST(CustomVectorTest, ResizeWithValueThrowsWhenShrinking) {
+ Vector<int> v1{1, 2, 3, 4};
+ std::vector<int> v2{1, 2, 3, 4}; 
+ EXPECT_THROW(v1.resize(2, 10), std::logic_error);
+ v2.resize(2, 10); 
+}
 
 TEST(CustomVectorTest, ResizeWithValueGrowsAndFills) {
   Vector<int> v1{1, 2};
@@ -269,6 +271,74 @@ TEST(CustomVectorTest, ConstReverseIteratorsTraverseBackwards) {
     EXPECT_EQ(*it1, *it2);
   }
 }
+
+// --------------- Insert operation -------------
+TEST(CustomVectorTest, InsertValueAtStart) {
+  Vector<int> v1 {1, 2, 3, 4}; 
+  std::vector<int> v2 {1, 2, 3,4}; 
+  auto it1 = v1.insert(v1.begin(), 100); 
+  auto it2 = v2.insert(v2.begin(), 100); 
+  for(auto i{0} ; i<5 ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
+}
+
+TEST(CustomVectorTest, InsertValueAtEnd) {
+  Vector<int> v1 {1, 2, 3, 4}; 
+  std::vector<int> v2 {1, 2, 3, 4}; 
+  auto it1 = v1.insert(v1.end(), 100); 
+  auto it2 = v2.insert(v2.end(), 100);
+  for(auto i{0} ; i<5 ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
+}
+
+TEST(CustomVectorTest, InsertValueInMiddle) {
+  Vector<int> v1 {1, 2, 3, 4}; 
+  std::vector<int> v2 {1, 2, 3, 4}; 
+  auto it1 = v1.insert(v1.begin() + 2, 100); 
+  auto it2 = v2.insert(v2.begin() + 2, 100);
+  for(auto i{0} ; i<5 ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
+}
+
+TEST(CustomVectorTest, InsertValuesAtStart) {
+  Vector<int> v1 {1, 2, 3, 4}; 
+  std::vector<int> v2 {1, 2, 3,4}; 
+  auto it1 = v1.insert(v1.begin(), 100, 10); 
+  auto it2 = v2.insert(v2.begin(), 100, 10); 
+  for(auto i{0} ; i<104 ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
+}
+
+TEST(CustomVectorTest, InsertValuesAtEnd) {
+  Vector<int> v1 {1, 2, 3, 4}; 
+  std::vector<int> v2 {1, 2, 3, 4}; 
+  auto it1 = v1.insert(v1.end(), 100, 10); 
+  auto it2 = v2.insert(v2.end(), 100, 10);
+  for(auto i{0} ; i<104 ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
+}
+
+TEST(CustomVectorTest, InsertValuesInMiddle) {
+  Vector<int> v1 {1, 2, 3, 4}; 
+  std::vector<int> v2 {1, 2, 3, 4}; 
+  auto it1 = v1.insert(v1.begin() + 2, 100, 10); 
+  auto it2 = v2.insert(v2.begin() + 2, 100, 10);
+  for(auto i{0} ; i<104 ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
+}
+
 
 // main unchanged
 int main(int argc, char **argv) {

@@ -11,7 +11,7 @@ public:
   using pointer = T *;
   using const_pointer = const T *;
   using reference = T &;
-  using const_reference = T &;
+  using const_reference = const T &;
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using rvalue = T &&;
@@ -45,6 +45,8 @@ public:
   // TODO: to implement insert, insert_range
   // inserts an element at a pos
   iterator insert(const_iterator pos, const_reference value);
+  iterator insert(const_iterator pos, rvalue value);
+  iterator insert(const_iterator pos, size_type count, const_reference value);  
   iterator insert_range(const_iterator pos, rvalue value);
   // TODO: implemnent emplace, emplace_back, append_range
   // iterator emplace(const_iterator pos, Args&& args);
@@ -88,7 +90,7 @@ public:
   const_iterator cend() const;
   reverse_iterator rbegin();
   const_reverse_iterator rbegin() const;
-  const_reverse_iterator crebgin() const noexcept;
+  const_reverse_iterator crbegin() const noexcept;
   reverse_iterator rend();
   const_reverse_iterator rend() const;
   const_reverse_iterator crend() const noexcept;
@@ -253,13 +255,15 @@ typename Vector<T>::const_reference Vector<T>::at(size_type indx) const {
 }
 template <typename T>
 typename Vector<T>::reference Vector<T>::operator[](std::size_t indx) const {
-  return at(indx);
+  if (indx >= sz)
+    throw std::out_of_range("Out of index range");
+  return arr[indx];
 }
 template <typename T> typename Vector<T>::reference Vector<T>::front() const {
-  return at(0);
+  return arr[0];
 }
 template <typename T> typename Vector<T>::reference Vector<T>::back() const {
-  return at(sz - 1);
+  return arr[size()-1];
 }
 template <typename T> typename Vector<T>::pointer Vector<T>::data() const {
   return arr;
@@ -288,7 +292,9 @@ template <typename T> void Vector<T>::shrink_to_fit() {
   shrink_to_fit_internal();
 }
 
+///////////////////////////////////////////////
 ////////////// MODIFIERS //////////////////////
+///////////////////////////////////////////////
 template <typename T> void Vector<T>::push_back(const_reference x) {
   if (size() == capacity()) {
     expandArray();
@@ -300,7 +306,7 @@ template <typename T> void Vector<T>::push_back(rvalue x) {
   if (size() == capacity()) {
     expandArray();
   }
-  arr[sz++] = T{x};
+  arr[sz++] = std::move(x);
 }
 template <typename T> void Vector<T>::pop_back() {
   if (size() == 0) {
@@ -360,6 +366,60 @@ void Vector<T>::resize(size_type count, const_rvalue value) {
     sz = count; 
   }
 }
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::insert(
+  const_iterator pos,
+  const_reference value
+) {
+  auto index { pos - cbegin() };
+  if(size() == capacity()) {
+    expandArray();
+  }
+  for(auto i{static_cast<difference_type>(size())} ; i > index ; i--) {
+    arr[i] = arr[i-1];
+  }
+  arr[index] = value;
+  sz++;
+  return (arr + index);
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::insert(
+  const_iterator pos,
+  rvalue value
+) {
+  auto index { pos - cbegin() };
+  if(size() == capacity()) {
+    expandArray();
+  }
+  for(auto i{static_cast<difference_type>(size())} ; i > index ; i--) {
+    arr[i] = arr[i-1];
+  }
+  arr[index] = value; 
+  sz++; 
+  return (arr + index); 
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::insert(
+  const_iterator pos,
+  size_type count,
+  const_reference value
+) {
+  if (count == 0) return const_cast<iterator>(pos);
+  auto index { pos - cbegin() };
+  if (sz + count > cap) {
+    reserve_internal(std::max(sz + count, cap * 2 == 0 ? count : cap * 2));
+  }
+  for (auto i = static_cast<difference_type>(sz) - 1; i >= index; i--) {
+    arr[i + count] = arr[i];
+  }
+  std::fill(arr + index, arr + index + count, value);
+  sz += count;
+  return arr + index;
+}
+
 ///////////////////////////////////////////////////
 ///////////////// ITERATORS ///////////////////////
 ///////////////////////////////////////////////////
@@ -386,7 +446,7 @@ typename Vector<T>::reverse_iterator Vector<T>::rbegin() {
   return std::reverse_iterator(end());
 }
 template <typename T>
-typename Vector<T>::const_reverse_iterator Vector<T>::crebgin() const noexcept {
+typename Vector<T>::const_reverse_iterator Vector<T>::crbegin() const noexcept {
   return std::reverse_iterator(cend());
 }
 template <typename T> typename Vector<T>::const_reverse_iterator Vector<T>::rend() const
