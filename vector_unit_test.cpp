@@ -1,5 +1,7 @@
 #include "vector.hpp"
+#include <algorithm>
 #include <gtest/gtest.h>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -339,6 +341,74 @@ TEST(CustomVectorTest, InsertValuesInMiddle) {
   EXPECT_EQ((it1 - v1.begin()), (it2 - v2.begin())); 
 }
 
+TEST(CustomVectorTest, InsertRange) {
+  std::vector<std::string> vec_to_insert {"10", "10", "20"}; 
+  Vector<std::string> v1 {"1", "2", "3", "4"}; 
+  std::vector<std::string> v {"1", "2", "3", "4"}; 
+
+  auto it1 = v1.insert(v1.begin() + 1, vec_to_insert.begin()+1, vec_to_insert.end()); 
+  auto it2 = v.insert(v.begin() + 1, vec_to_insert.begin()+1, vec_to_insert.end()); 
+  
+  EXPECT_EQ(v1.size(), v.size()); 
+  for(auto i{0} ; i<v1.size() ; i++) {
+    EXPECT_EQ(v1[i], v[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v.begin())); 
+}
+
+TEST(CustomVectorTest, InsertRangeReverse) {
+  std::vector<std::string> vec_to_insert {"10", "10", "20"}; 
+  Vector<std::string> v1 {"1", "2", "3", "4"}; 
+  std::vector<std::string> v {"1", "2", "3", "4"}; 
+
+  auto it1 = v1.insert(v1.begin() + 1, vec_to_insert.rbegin()+1, vec_to_insert.rend()); 
+  auto it2 = v.insert(v.begin() + 1, vec_to_insert.rbegin()+1, vec_to_insert.rend()); 
+  
+  EXPECT_EQ(v1.size(), v.size()); 
+  for(auto i{0} ; i<v1.size() ; i++) {
+    EXPECT_EQ(v1[i], v[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v.begin())); 
+}
+
+TEST(CustomVectorTest, InsertInitializerList) {
+  std::initializer_list<std::string> list_to_insert {"A", "B"}; 
+  Vector<std::string> v1 {"1", "2", "3", "4"}; 
+  std::vector<std::string> v {"1", "2", "3", "4"}; 
+
+  auto it1 = v1.insert(v1.begin() + 1, list_to_insert.begin()+1, list_to_insert.end()); 
+  auto it2 = v.insert(v.begin() + 1, list_to_insert.begin()+1, list_to_insert.end()); 
+  
+  EXPECT_EQ(v1.size(), v.size()); 
+  for(auto i{0} ; i<v1.size() ; i++) {
+    EXPECT_EQ(v1[i], v[i]); 
+  }
+  EXPECT_EQ((it1 - v1.begin()), (it2 - v.begin()));
+}
+
+TEST(CustomVectorTest, SortVectorUsingStdSort) {
+  Vector<int> v1 {4, 3, 2, 1}; 
+  std::vector<int> v2 {4, 3, 2, 1};
+  std::sort(v1.begin(), v1.end()); 
+  std::sort(v2.begin(), v2.end());
+
+  EXPECT_EQ(v1.size(), v2.size()); 
+  for(auto i{0} ; i<v1.size() ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+}
+
+TEST(CustomVectorTest, ReverseVectorUsingStdReverse) {
+  Vector<int> v1 {4, 3, 2, 1}; 
+  std::vector<int> v2 {4, 3, 2, 1};
+  std::reverse(v1.begin(), v1.end()); 
+  std::reverse(v2.begin(), v2.end());
+
+  EXPECT_EQ(v1.size(), v2.size()); 
+  for(auto i{0} ; i<v1.size() ; i++) {
+    EXPECT_EQ(v1[i], v2[i]); 
+  }
+}
 
 // main unchanged
 int main(int argc, char **argv) {

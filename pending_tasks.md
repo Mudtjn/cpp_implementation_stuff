@@ -1,1 +1,0 @@
-Adding `insert_range`, `emplace`, `append_range` function to vector. 

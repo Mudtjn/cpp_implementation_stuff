@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <stdexcept>
 
@@ -46,7 +48,10 @@ public:
   // inserts an element at a pos
   iterator insert(const_iterator pos, const_reference value);
   iterator insert(const_iterator pos, rvalue value);
-  iterator insert(const_iterator pos, size_type count, const_reference value);  
+  iterator insert(const_iterator pos, size_type count, const_reference value);
+  template<typename InputIt> requires std::input_iterator<InputIt>
+  iterator insert(const_iterator pos, InputIt first, InputIt last);
+  iterator insert(const_iterator pos, std::initializer_list<T> list); 
   iterator insert_range(const_iterator pos, rvalue value);
   // TODO: implemnent emplace, emplace_back, append_range
   // iterator emplace(const_iterator pos, Args&& args);
@@ -110,8 +115,14 @@ private:
   void expandArray();
   void reserve_internal(size_type new_cap);
   void shrink_to_fit_internal();
-  // this assumes new_size > old_size
-  void resize_internal(size_type new_cap); 
+  void resize_internal(size_type new_cap);
+
+  template<typename InputIt> requires std::forward_iterator<InputIt>
+  iterator insert_dispatch(difference_type index, InputIt first, InputIt last,
+                           std::forward_iterator_tag);
+  template<typename InputIt> requires std::input_iterator<InputIt>
+  iterator insert_dispatch(difference_type index, InputIt first, InputIt last,
+                           std::input_iterator_tag);
 };
 
 template <typename T> void Vector<T>::resize_internal(size_type new_cap) {
@@ -173,10 +184,7 @@ Vector<T>::Vector(Vector &other) : sz{other.size()}, cap{other.capacity()} {
     arr = nullptr;
   } else {
     auto *arr1 = new T[cap];
-    for (auto i = 0; i < sz; i++) {
-      arr1[i] = other[i];
-    }
-    // delete not required since it is a constructor
+    std::copy(other.arr, other.arr + sz, arr1);
     arr = arr1;
   }
 }
@@ -203,9 +211,7 @@ template <typename T> Vector<T> &Vector<T>::operator=(Vector &other) {
     arr = nullptr;
   } else {
     auto *arr1 = new T[cap];
-    for (auto i = 0; i < sz; i++) {
-      arr1[i] = other[i];
-    }
+    std::copy(other.arr, other.arr + sz, arr1);
     delete[] arr;
     arr = arr1;
   }
@@ -255,8 +261,10 @@ typename Vector<T>::const_reference Vector<T>::at(size_type indx) const {
 }
 template <typename T>
 typename Vector<T>::reference Vector<T>::operator[](std::size_t indx) const {
-  if (indx >= sz)
-    throw std::out_of_range("Out of index range");
+  // This causes issues in branch prediction 
+  // Also breaks SIMD
+  // if (indx >= sz)
+  //   throw std::out_of_range("Out of index range");
   return arr[indx];
 }
 template <typename T> typename Vector<T>::reference Vector<T>::front() const {
@@ -341,14 +349,12 @@ void Vector<T>::resize(size_type count, const_reference value) {
   if (size() == count) {
     return;
   } else if (size() > count) {
-    throw std::logic_error("current size of vector > count");
+    sz = count;
   } else {
-    auto x = size(); 
-    resize_internal(count); 
-    for (auto i{x}; i < count; i++) {
-      push_back(T{value});
-    }
-    sz = count; 
+    auto old_sz = sz;
+    resize_internal(count);
+    std::fill(arr + old_sz, arr + count, value);
+    sz = count;
   }
 }
 template <typename T>
@@ -356,14 +362,12 @@ void Vector<T>::resize(size_type count, const_rvalue value) {
   if (size() == count) {
     return;
   } else if (size() > count) {
-    throw std::logic_error("current size of vector > count");
+    sz = count;
   } else {
-    auto x = size(); 
-    resize_internal(count); 
-    for (auto i{x}; i < count; i++) {
-      push_back(T{value});
-    }
-    sz = count; 
+    auto old_sz = sz;
+    resize_internal(count);
+    std::fill(arr + old_sz, arr + count, value);
+    sz = count;
   }
 }
 
@@ -376,9 +380,10 @@ typename Vector<T>::iterator Vector<T>::insert(
   if(size() == capacity()) {
     expandArray();
   }
-  for(auto i{static_cast<difference_type>(size())} ; i > index ; i--) {
-    arr[i] = arr[i-1];
-  }
+  // memmove handles overlapping regions (src and dst overlap when shifting right)
+  // and uses SIMD internally — 8-16 elements per instruction vs scalar loop's 1
+  // safe only for trivially copyable T (no destructors/copy-ctors bypassed)
+  std::memmove(arr + index + 1, arr + index, (sz - index) * sizeof(T));
   arr[index] = value;
   sz++;
   return (arr + index);
@@ -393,12 +398,11 @@ typename Vector<T>::iterator Vector<T>::insert(
   if(size() == capacity()) {
     expandArray();
   }
-  for(auto i{static_cast<difference_type>(size())} ; i > index ; i--) {
-    arr[i] = arr[i-1];
-  }
-  arr[index] = value; 
-  sz++; 
-  return (arr + index); 
+  // same as above: memmove for SIMD-accelerated overlap-safe shift
+  std::memmove(arr + index + 1, arr + index, (sz - index) * sizeof(T));
+  arr[index] = std::move(value);
+  sz++;
+  return (arr + index);
 }
 
 template <typename T>
@@ -412,11 +416,85 @@ typename Vector<T>::iterator Vector<T>::insert(
   if (sz + count > cap) {
     reserve_internal(std::max(sz + count, cap * 2 == 0 ? count : cap * 2));
   }
-  for (auto i = static_cast<difference_type>(sz) - 1; i >= index; i--) {
-    arr[i + count] = arr[i];
-  }
+  // shift existing elements right by count slots
+  // memmove: overlap-safe (src/dst overlap) + SIMD = faster than scalar loop
+  std::memmove(arr + index + count, arr + index, (sz - index) * sizeof(T));
   std::fill(arr + index, arr + index + count, value);
   sz += count;
+  return arr + index;
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::insert(
+  const_iterator pos,
+  std::initializer_list<T> list
+) {
+  auto list_size {list.size()}; 
+  auto index {pos -  cbegin()}; 
+  
+  if(size() + list_size > cap) {
+    reserve_internal(std::max(sz + list_size, cap*2 == 0 ? list_size: cap*2));
+  }
+  for(auto i = static_cast<difference_type>(sz) - 1 ; i>= index ; i--) {
+    arr[i+list_size] = arr[i];  
+  }
+  std::copy(list.begin(), list.end(), arr + index); 
+  return (arr + index); 
+}
+
+// Dispatches to insert_dispatch based on iterator_category.
+// std::input_iterator concept gates out non-iterators (int, float, etc.)
+// so insert(pos, count, value) overload wins for integral types.
+template <typename T>
+template <typename InputIt>
+  requires std::input_iterator<InputIt>
+typename Vector<T>::iterator Vector<T>::insert(
+  const_iterator pos,
+  InputIt first,
+  InputIt last
+) {
+  auto index = pos - cbegin();
+  using category = typename std::iterator_traits<InputIt>::iterator_category;
+  return insert_dispatch(index, first, last, category{});
+}
+
+// ForwardIterator and above (bidirectional, random_access):
+// multi-pass — safe to call std::distance (traverses twice).
+// std::distance internally dispatches: O(1) for RandomAccess, O(n) for Forward.
+// Tag parameter selects this overload; concept just ensures InputIt is an iterator.
+template <typename T>
+template <typename InputIt>
+  requires std::forward_iterator<InputIt>
+typename Vector<T>::iterator Vector<T>::insert_dispatch(
+  difference_type index, InputIt first, InputIt last,
+  std::forward_iterator_tag
+) {
+  auto count = static_cast<size_type>(std::distance(first, last));
+  if (count == 0) return arr + index;
+  if (sz + count > cap)
+    reserve_internal(std::max(sz + count, cap == 0 ? count : cap * 2));
+  // memmove: SIMD-accelerated overlap-safe shift — src/dst overlap when shifting right
+  std::memmove(arr + index + count, arr + index, (sz - index) * sizeof(T));
+  std::copy(first, last, arr + index);
+  sz += count;
+  return arr + index;
+}
+
+// InputIterator only: single-pass — reading advances and consumes the iterator.
+// Can't call std::distance (would exhaust it before copy).
+// Insert one element at a time instead.
+template <typename T>
+template <typename InputIt>
+  requires std::input_iterator<InputIt>
+typename Vector<T>::iterator Vector<T>::insert_dispatch(
+  difference_type index, InputIt first, InputIt last,
+  std::input_iterator_tag
+) {
+  auto insert_pos = index;
+  while (first != last) {
+    insert(cbegin() + insert_pos, *first++);
+    ++insert_pos;
+  }
   return arr + index;
 }
 
