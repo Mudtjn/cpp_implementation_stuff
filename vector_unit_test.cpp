@@ -174,11 +174,15 @@ TEST(CustomVectorTest, ResizeLargerValueDefault) {
   // on T
 }
 
-TEST(CustomVectorTest, ResizeWithValueThrowsWhenShrinking) {
+TEST(CustomVectorTest, ResizeWithValueWhenShrinking) {
  Vector<int> v1{1, 2, 3, 4};
  std::vector<int> v2{1, 2, 3, 4}; 
- EXPECT_THROW(v1.resize(2, 10), std::logic_error);
- v2.resize(2, 10); 
+ v1.resize(2, 10);
+ v2.resize(2, 10);
+ EXPECT_EQ(v1.size(), v2.size()); 
+ for(auto i{0} ; i<v1.size() ; i++) {
+  EXPECT_EQ(v1[i], v2[i]); 
+ }
 }
 
 TEST(CustomVectorTest, ResizeWithValueGrowsAndFills) {
@@ -349,7 +353,15 @@ TEST(CustomVectorTest, InsertRange) {
   auto it1 = v1.insert(v1.begin() + 1, vec_to_insert.begin()+1, vec_to_insert.end()); 
   auto it2 = v.insert(v.begin() + 1, vec_to_insert.begin()+1, vec_to_insert.end()); 
   
-  EXPECT_EQ(v1.size(), v.size()); 
+  EXPECT_EQ(v1.size(), v.size());
+  // for(auto x: v1) {
+  //   std::cout << x << ' '; 
+  // } 
+  // std::cout << "\n"; 
+  // for(auto x: v) {
+  //   std::cout << x << ' ';  
+  // }
+  // std::cout << "\n"; 
   for(auto i{0} ; i<v1.size() ; i++) {
     EXPECT_EQ(v1[i], v[i]); 
   }
