@@ -62,14 +62,10 @@ public:
     std::ranges::input_range<R> && 
     std::convertible_to<std::ranges::range_reference_t<R>, T>
   constexpr void append_range(R&& rg); 
-  // TODO: implemnent emplace, emplace_back, append_range
-  // iterator emplace(const_iterator pos, Args&& args);
-  // erase
-  // RETURNS: iterator following last removed elements
-  // 1. If pos refers to last elements, then end() is returned
-  // 2. If last==end(), then updated end() iterator is returned.
-  // 2.1 if [first, last] is empty range -> then last is returned.
-  // erases element at specific position
+  template <class... Args>
+  iterator emplace(const_iterator pos, Args&&... args); 
+  template <class... Args>
+  reference emplace_back(Args&&... args); 
   iterator erase(iterator pos);
   iterator erase(const_iterator pos);
   // erases range of elements [first, last]
@@ -554,6 +550,25 @@ template<class R> requires
     }
     std::copy(rg.begin(), rg.end(), arr + index);
     sz += rg_size;  
+  }
+
+template<typename T>
+template <class... Args>
+  typename Vector<T>::iterator Vector<T>::emplace(const_iterator pos, Args&&... args) { 
+    auto index {pos - begin()}; 
+    if(size() == capacity()) expandArray(); 
+    std::copy_backward(arr + index, arr + sz, arr + sz + 1); 
+    arr[index] = T(std::forward<Args>(args)...);
+    ++sz;  
+    return (arr + index); 
+  }
+
+template<typename T>
+template <class... Args>
+  typename Vector<T>::reference Vector<T>::emplace_back(Args&&... args) {
+    if(size() == capacity()) expandArray(); 
+    new (arr + sz) T(std::forward<Args>(args)...);
+    return arr[sz++];
   }
 
 ///////////////////////////////////////////////////

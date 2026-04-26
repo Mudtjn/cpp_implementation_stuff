@@ -454,6 +454,35 @@ TEST(CustomVectorTest, AppendRangeUsingVector) {
   }
 }
 
+struct TestStruct { 
+  std::string st; 
+  int number; 
+  TestStruct()=default; 
+  TestStruct(std::string s, int num1): st{std::move(s)}, number{num1}{}
+  TestStruct(TestStruct&& other): st{std::move(other.st)}, number{other.number} {}
+  TestStruct& operator=(const TestStruct& other)=default; 
+}; 
+
+TEST(CustomVectorTest, EmplaceBackAndEmplaceUsingVector) {
+  Vector<TestStruct> v1; 
+  std::vector<TestStruct> v2; 
+  auto& ref1 {v1.emplace_back("jelly", 1)}; 
+  auto& ref1_2 { v1.emplace_back("jelly", 2)}; 
+  auto& ref2  {v2.emplace_back("jelly", 1)};   
+  auto& ref2_2 {v2.emplace_back("jelly", 2)}; 
+  
+  auto it1 {v1.emplace(v1.begin() + 1, "hello", 3)};
+  auto it2 {v2.emplace(v2.begin() + 1, "hello", 3)}; 
+  
+  EXPECT_EQ(v1.size(), 3); 
+  EXPECT_EQ(v1.size(), v2.size()); 
+  for(auto i{0} ; i<3 ; i++) {
+    EXPECT_EQ(v1[i].st, v2[i].st); 
+    EXPECT_EQ(v1[i].number, v2[i].number); 
+  }
+  EXPECT_EQ(it1 - v1.begin(), it2 - v2.begin()); 
+}
+
 // main unchanged
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
