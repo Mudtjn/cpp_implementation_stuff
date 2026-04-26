@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <string>
 #include <vector>
+#include <iterator>
 
 // Existing tests
 TEST(CustomVectorTest, CheckVectorSize) {
@@ -419,6 +420,37 @@ TEST(CustomVectorTest, ReverseVectorUsingStdReverse) {
   EXPECT_EQ(v1.size(), v2.size()); 
   for(auto i{0} ; i<v1.size() ; i++) {
     EXPECT_EQ(v1[i], v2[i]); 
+  }
+}
+
+TEST(CustomVectorTest, InsertRangeUsingVector) {
+  Vector<int> v1 {1, 2, 3, 4};
+  std::vector<int> v2 {1, 2, 3, 4};
+  const auto rg = std::vector<int> {-1, -2, -3};
+
+  auto pos_v1 {std::next(v1.begin(), 2)};
+  auto pos_v2 {std::next(v2.begin(), 2)};
+
+  EXPECT_EQ(*pos_v1, 3);
+  auto it1 {v1.insert_range(pos_v1, rg)};
+  auto it2 {v2.insert(pos_v2, rg.begin(), rg.end())};  // insert_range needs libstdc++14+; not available on this system
+  EXPECT_EQ(v1.size(), v2.size()); 
+  for (std::size_t i = 0; i < v2.size(); i++) {
+    EXPECT_EQ(v1[i], v2[i]);
+  }
+  EXPECT_EQ(it1 - v1.begin(), it2 - v2.begin());
+}
+
+TEST(CustomVectorTest, AppendRangeUsingVector) {
+  Vector<int> v1 {1, 2, 3, 4};
+  std::vector<int> v2 {1, 2, 3, 4};
+  const auto rg = std::vector<int> {-1, -2, -3};
+
+  v1.append_range(rg);
+  v2.insert(v2.end(), rg.begin(), rg.end());  // append_range = C++23; not in libstdc++13
+  EXPECT_EQ(v1.size(), v2.size());
+  for (std::size_t i = 0; i < v2.size(); i++) {
+    EXPECT_EQ(v1[i], v2[i]);
   }
 }
 

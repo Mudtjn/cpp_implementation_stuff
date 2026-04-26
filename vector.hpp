@@ -1,10 +1,11 @@
 #include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <ranges>
 #include <stdexcept>
-
 template <typename T> class Vector {
 
 public:
@@ -44,15 +45,23 @@ public:
   void push_back(rvalue x);
   void pop_back();
   void clear();
-  // TODO: to implement insert, insert_range
-  // inserts an element at a pos
   iterator insert(const_iterator pos, const_reference value);
   iterator insert(const_iterator pos, rvalue value);
   iterator insert(const_iterator pos, size_type count, const_reference value);
   template<typename InputIt> requires std::input_iterator<InputIt>
   iterator insert(const_iterator pos, InputIt first, InputIt last);
-  iterator insert(const_iterator pos, std::initializer_list<T> list); 
-  iterator insert_range(const_iterator pos, rvalue value);
+  iterator insert(const_iterator pos, std::initializer_list<T> list);
+  // This is type check in C++ 
+  template<class R> requires 
+  // R must be iterable - has begin() / end()
+    std::ranges::input_range<R> && 
+  // Elements of R must be converitble to T
+    std::convertible_to<std::ranges::range_reference_t<R>, T> 
+  constexpr iterator insert_range(const_iterator pos, R&& rg);
+  template<class R> requires 
+    std::ranges::input_range<R> && 
+    std::convertible_to<std::ranges::range_reference_t<R>, T>
+  constexpr void append_range(R&& rg); 
   // TODO: implemnent emplace, emplace_back, append_range
   // iterator emplace(const_iterator pos, Args&& args);
   // erase
@@ -510,6 +519,42 @@ typename Vector<T>::iterator Vector<T>::insert_dispatch(
   }
   return arr + index;
 }
+
+template<typename T>
+template<class R> requires 
+  // R must be iterable - has begin() / end()
+    std::ranges::input_range<R> && 
+  // Elements of R must be converitble to T
+    std::convertible_to<std::ranges::range_reference_t<R>, T> 
+  constexpr typename Vector<T>::iterator Vector<T>::insert_range(const_iterator pos, R&& rg) 
+  {
+    auto index {pos - cbegin()}; 
+    auto rg_size {rg.size()}; 
+
+    if(size() + rg_size >= capacity()) {
+      resize_internal(std::max(sz + rg_size, cap == 0 ? rg_size : cap * 2)); 
+    }
+    // in copy backward -> last index from where iteration starts should be passed. 
+    std::copy_backward(arr + index, arr + sz, arr + sz + rg_size);
+    std::copy(rg.begin(), rg.end(), arr + index);
+    sz += rg_size;  
+    return arr + index; 
+  } 
+
+template<typename T>
+template<class R> requires 
+    std::ranges::input_range<R> && 
+    std::convertible_to<std::ranges::range_reference_t<R>, T>
+  constexpr void Vector<T>::append_range(R&& rg) {
+    auto index {cend() - cbegin()}; 
+    auto rg_size {rg.size()}; 
+
+    if(size() + rg_size >= capacity()) {
+      resize_internal(std::max(sz + rg_size, cap == 0 ? rg_size : cap * 2)); 
+    }
+    std::copy(rg.begin(), rg.end(), arr + index);
+    sz += rg_size;  
+  }
 
 ///////////////////////////////////////////////////
 ///////////////// ITERATORS ///////////////////////
