@@ -1,87 +1,43 @@
 #include "../vector.hpp"
 #include <benchmark/benchmark.h>
-#include <numeric>
+#include <string>
 #include <vector>
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// 32 chars — forces heap alloc per element (past SSO ~15 char threshold)
+static const std::string kStr(32, 'x');
 
-static Vector<int> make_custom(int n) {
-  Vector<int> v;
+static Vector<std::string> make_custom(int n) {
+  Vector<std::string> v;
   v.reserve(n);
-  for (int i = 0; i < n; i++) v.push_back(i);
+  for (int i = 0; i < n; i++) v.push_back(kStr);
   return v;
 }
 
-static std::vector<int> make_std(int n) {
-  std::vector<int> v;
+static std::vector<std::string> make_std(int n) {
+  std::vector<std::string> v;
   v.reserve(n);
-  for (int i = 0; i < n; i++) v.push_back(i);
+  for (int i = 0; i < n; i++) v.push_back(kStr);
   return v;
 }
 
 // ─── constructors ───────────────────────────────────────────────────────────
 
-static void BM_Custom_SizeCtor(benchmark::State &state) {
-  for (auto _ : state) {
-    Vector<int> v(state.range(0));
-    benchmark::DoNotOptimize(v.data()); // make heap pointer observable — prevents allocation elimination
-    benchmark::ClobberMemory();         // force page faults: compiler must assume all memory changed,
-                                        // cannot eliminate zero-init writes → timing scales with n
-  }
-}
-static void BM_Std_SizeCtor(benchmark::State &state) {
-  for (auto _ : state) {
-    std::vector<int> v(state.range(0));
-    benchmark::DoNotOptimize(v.data());
-    benchmark::ClobberMemory();
-  }
-}
-BENCHMARK(BM_Custom_SizeCtor)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_SizeCtor)->Range(1 << 10, 1 << 20);
-
-static void BM_Custom_SizeValueCtor(benchmark::State &state) {
-  for (auto _ : state) {
-    Vector<int> v(state.range(0), 42);
-    benchmark::DoNotOptimize(v);
-  }
-}
-static void BM_Std_SizeValueCtor(benchmark::State &state) {
-  for (auto _ : state) {
-    std::vector<int> v(state.range(0), 42);
-    benchmark::DoNotOptimize(v);
-  }
-}
-BENCHMARK(BM_Custom_SizeValueCtor)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_SizeValueCtor)->Range(1 << 10, 1 << 20);
-
-static void BM_Custom_CopyCtor(benchmark::State &state) {
-  auto src = make_custom(state.range(0));
-  for (auto _ : state) {
-    Vector<int> v(src);
-    benchmark::DoNotOptimize(v);
-  }
-}
-static void BM_Std_CopyCtor(benchmark::State &state) {
-  auto src = make_std(state.range(0));
-  for (auto _ : state) {
-    std::vector<int> v(src);
-    benchmark::DoNotOptimize(v);
-  }
-}
-BENCHMARK(BM_Custom_CopyCtor)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_CopyCtor)->Range(1 << 10, 1 << 20);
+// NOTE: SizeValueCtor and CopyCtor benchmarks omitted —
+// Vector(size, value) uses operator new + std::fill on raw memory (UB for string).
+// Copy ctor uses operator new + std::copy on raw memory (UB for string).
+// Re-enable after completing operator new transition in vector.hpp.
 
 static void BM_Custom_MoveCtor(benchmark::State &state) {
   for (auto _ : state) {
     auto src = make_custom(state.range(0));
-    Vector<int> v(std::move(src));
+    Vector<std::string> v(std::move(src));
     benchmark::DoNotOptimize(v);
   }
 }
 static void BM_Std_MoveCtor(benchmark::State &state) {
   for (auto _ : state) {
     auto src = make_std(state.range(0));
-    std::vector<int> v(std::move(src));
+    std::vector<std::string> v(std::move(src));
     benchmark::DoNotOptimize(v);
   }
 }
@@ -90,29 +46,10 @@ BENCHMARK(BM_Std_MoveCtor)->Range(1 << 10, 1 << 20);
 
 // ─── assignment ─────────────────────────────────────────────────────────────
 
-static void BM_Custom_CopyAssign(benchmark::State &state) {
-  auto src = make_custom(state.range(0));
-  Vector<int> dst;
-  for (auto _ : state) {
-    dst = src;
-    benchmark::DoNotOptimize(dst);
-  }
-}
-static void BM_Std_CopyAssign(benchmark::State &state) {
-  auto src = make_std(state.range(0));
-  std::vector<int> dst;
-  for (auto _ : state) {
-    dst = src;
-    benchmark::DoNotOptimize(dst);
-  }
-}
-BENCHMARK(BM_Custom_CopyAssign)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_CopyAssign)->Range(1 << 10, 1 << 20);
-
 static void BM_Custom_MoveAssign(benchmark::State &state) {
   for (auto _ : state) {
     auto src = make_custom(state.range(0));
-    Vector<int> dst;
+    Vector<std::string> dst;
     dst = std::move(src);
     benchmark::DoNotOptimize(dst);
   }
@@ -120,13 +57,33 @@ static void BM_Custom_MoveAssign(benchmark::State &state) {
 static void BM_Std_MoveAssign(benchmark::State &state) {
   for (auto _ : state) {
     auto src = make_std(state.range(0));
-    std::vector<int> dst;
+    std::vector<std::string> dst;
     dst = std::move(src);
     benchmark::DoNotOptimize(dst);
   }
 }
 BENCHMARK(BM_Custom_MoveAssign)->Range(1 << 10, 1 << 20);
 BENCHMARK(BM_Std_MoveAssign)->Range(1 << 10, 1 << 20);
+
+// copy assign uses new T[] (old path) — safe for string
+static void BM_Custom_CopyAssign(benchmark::State &state) {
+  auto src = make_custom(state.range(0));
+  Vector<std::string> dst;
+  for (auto _ : state) {
+    dst = src;
+    benchmark::DoNotOptimize(dst);
+  }
+}
+static void BM_Std_CopyAssign(benchmark::State &state) {
+  auto src = make_std(state.range(0));
+  std::vector<std::string> dst;
+  for (auto _ : state) {
+    dst = src;
+    benchmark::DoNotOptimize(dst);
+  }
+}
+BENCHMARK(BM_Custom_CopyAssign)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Std_CopyAssign)->Range(1 << 10, 1 << 20);
 
 // ─── modifiers ──────────────────────────────────────────────────────────────
 
@@ -144,8 +101,8 @@ static void BM_Std_PopBack(benchmark::State &state) {
     benchmark::DoNotOptimize(v);
   }
 }
-BENCHMARK(BM_Custom_PopBack)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_PopBack)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Custom_PopBack)->Range(1 << 10, 1 << 18);
+BENCHMARK(BM_Std_PopBack)->Range(1 << 10, 1 << 18);
 
 static void BM_Custom_Clear(benchmark::State &state) {
   for (auto _ : state) {
@@ -161,20 +118,20 @@ static void BM_Std_Clear(benchmark::State &state) {
     benchmark::DoNotOptimize(v);
   }
 }
-BENCHMARK(BM_Custom_Clear)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_Clear)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Custom_Clear)->Range(1 << 10, 1 << 18);
+BENCHMARK(BM_Std_Clear)->Range(1 << 10, 1 << 18);
 
 static void BM_Custom_InsertSingle(benchmark::State &state) {
   for (auto _ : state) {
     auto v = make_custom(state.range(0));
-    v.insert(v.begin() + v.size() / 2, 99);
+    v.insert(v.begin() + v.size() / 2, kStr);
     benchmark::DoNotOptimize(v);
   }
 }
 static void BM_Std_InsertSingle(benchmark::State &state) {
   for (auto _ : state) {
     auto v = make_std(state.range(0));
-    v.insert(v.begin() + v.size() / 2, 99);
+    v.insert(v.begin() + v.size() / 2, kStr);
     benchmark::DoNotOptimize(v);
   }
 }
@@ -184,14 +141,14 @@ BENCHMARK(BM_Std_InsertSingle)->Range(1 << 10, 1 << 18);
 static void BM_Custom_InsertCount(benchmark::State &state) {
   for (auto _ : state) {
     auto v = make_custom(state.range(0));
-    v.insert(v.begin(), 100, 42);
+    v.insert(v.begin(), 100, kStr);
     benchmark::DoNotOptimize(v);
   }
 }
 static void BM_Std_InsertCount(benchmark::State &state) {
   for (auto _ : state) {
     auto v = make_std(state.range(0));
-    v.insert(v.begin(), 100, 42);
+    v.insert(v.begin(), 100, kStr);
     benchmark::DoNotOptimize(v);
   }
 }
@@ -199,8 +156,7 @@ BENCHMARK(BM_Custom_InsertCount)->Range(1 << 10, 1 << 18);
 BENCHMARK(BM_Std_InsertCount)->Range(1 << 10, 1 << 18);
 
 static void BM_Custom_InsertRange(benchmark::State &state) {
-  std::vector<int> src(100);
-  std::iota(src.begin(), src.end(), 0);
+  std::vector<std::string> src(100, kStr);
   for (auto _ : state) {
     auto v = make_custom(state.range(0));
     v.insert(v.begin(), src.begin(), src.end());
@@ -208,8 +164,7 @@ static void BM_Custom_InsertRange(benchmark::State &state) {
   }
 }
 static void BM_Std_InsertRange(benchmark::State &state) {
-  std::vector<int> src(100);
-  std::iota(src.begin(), src.end(), 0);
+  std::vector<std::string> src(100, kStr);
   for (auto _ : state) {
     auto v = make_std(state.range(0));
     v.insert(v.begin(), src.begin(), src.end());
@@ -218,42 +173,6 @@ static void BM_Std_InsertRange(benchmark::State &state) {
 }
 BENCHMARK(BM_Custom_InsertRange)->Range(1 << 10, 1 << 18);
 BENCHMARK(BM_Std_InsertRange)->Range(1 << 10, 1 << 18);
-
-static void BM_Custom_Resize(benchmark::State &state) {
-  for (auto _ : state) {
-    Vector<int> v;
-    v.resize(state.range(0));
-    benchmark::DoNotOptimize(v.data()); // prevent allocation elimination
-    benchmark::ClobberMemory();         // force zero-init writes to actually happen
-  }
-}
-static void BM_Std_Resize(benchmark::State &state) {
-  for (auto _ : state) {
-    std::vector<int> v;
-    v.resize(state.range(0));
-    benchmark::DoNotOptimize(v.data());
-    benchmark::ClobberMemory();
-  }
-}
-BENCHMARK(BM_Custom_Resize)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_Resize)->Range(1 << 10, 1 << 20);
-
-static void BM_Custom_ResizeWithValue(benchmark::State &state) {
-  for (auto _ : state) {
-    Vector<int> v;
-    v.resize(state.range(0), 42);
-    benchmark::DoNotOptimize(v);
-  }
-}
-static void BM_Std_ResizeWithValue(benchmark::State &state) {
-  for (auto _ : state) {
-    std::vector<int> v;
-    v.resize(state.range(0), 42);
-    benchmark::DoNotOptimize(v);
-  }
-}
-BENCHMARK(BM_Custom_ResizeWithValue)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_ResizeWithValue)->Range(1 << 10, 1 << 20);
 
 static void BM_Custom_Swap(benchmark::State &state) {
   auto v1 = make_custom(state.range(0));
@@ -280,14 +199,14 @@ BENCHMARK(BM_Std_Swap)->Range(1 << 10, 1 << 20);
 
 static void BM_Custom_Reserve(benchmark::State &state) {
   for (auto _ : state) {
-    Vector<int> v;
+    Vector<std::string> v;
     v.reserve(state.range(0));
     benchmark::DoNotOptimize(v);
   }
 }
 static void BM_Std_Reserve(benchmark::State &state) {
   for (auto _ : state) {
-    std::vector<int> v;
+    std::vector<std::string> v;
     v.reserve(state.range(0));
     benchmark::DoNotOptimize(v);
   }
@@ -319,87 +238,87 @@ BENCHMARK(BM_Std_ShrinkToFit)->Range(1 << 10, 1 << 20);
 static void BM_Custom_At(benchmark::State &state) {
   auto v = make_custom(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (int i = 0; i < state.range(0); i++)
-      sum += v.at(i);
-    benchmark::DoNotOptimize(sum);
+      len += v.at(i).size();
+    benchmark::DoNotOptimize(len);
   }
 }
 static void BM_Std_At(benchmark::State &state) {
   auto v = make_std(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (int i = 0; i < state.range(0); i++)
-      sum += v.at(i);
-    benchmark::DoNotOptimize(sum);
+      len += v.at(i).size();
+    benchmark::DoNotOptimize(len);
   }
 }
-BENCHMARK(BM_Custom_At)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_At)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Custom_At)->Range(1 << 10, 1 << 18);
+BENCHMARK(BM_Std_At)->Range(1 << 10, 1 << 18);
 
 static void BM_Custom_SubscriptOp(benchmark::State &state) {
   auto v = make_custom(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (int i = 0; i < state.range(0); i++)
-      sum += v[i];
-    benchmark::DoNotOptimize(sum);
+      len += v[i].size();
+    benchmark::DoNotOptimize(len);
   }
 }
 static void BM_Std_SubscriptOp(benchmark::State &state) {
   auto v = make_std(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (int i = 0; i < state.range(0); i++)
-      sum += v[i];
-    benchmark::DoNotOptimize(sum);
+      len += v[i].size();
+    benchmark::DoNotOptimize(len);
   }
 }
-BENCHMARK(BM_Custom_SubscriptOp)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_SubscriptOp)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Custom_SubscriptOp)->Range(1 << 10, 1 << 18);
+BENCHMARK(BM_Std_SubscriptOp)->Range(1 << 10, 1 << 18);
 
 // ─── iterators ──────────────────────────────────────────────────────────────
 
 static void BM_Custom_ForwardIterate(benchmark::State &state) {
   auto v = make_custom(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (auto it = v.begin(); it != v.end(); ++it)
-      sum += *it;
-    benchmark::DoNotOptimize(sum);
+      len += it->size();
+    benchmark::DoNotOptimize(len);
   }
 }
 static void BM_Std_ForwardIterate(benchmark::State &state) {
   auto v = make_std(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (auto it = v.begin(); it != v.end(); ++it)
-      sum += *it;
-    benchmark::DoNotOptimize(sum);
+      len += it->size();
+    benchmark::DoNotOptimize(len);
   }
 }
-BENCHMARK(BM_Custom_ForwardIterate)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_ForwardIterate)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Custom_ForwardIterate)->Range(1 << 10, 1 << 18);
+BENCHMARK(BM_Std_ForwardIterate)->Range(1 << 10, 1 << 18);
 
 static void BM_Custom_ReverseIterate(benchmark::State &state) {
   auto v = make_custom(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (auto it = v.rbegin(); it != v.rend(); ++it)
-      sum += *it;
-    benchmark::DoNotOptimize(sum);
+      len += it->size();
+    benchmark::DoNotOptimize(len);
   }
 }
 static void BM_Std_ReverseIterate(benchmark::State &state) {
   auto v = make_std(state.range(0));
   for (auto _ : state) {
-    int sum = 0;
+    std::size_t len = 0;
     for (auto it = v.rbegin(); it != v.rend(); ++it)
-      sum += *it;
-    benchmark::DoNotOptimize(sum);
+      len += it->size();
+    benchmark::DoNotOptimize(len);
   }
 }
-BENCHMARK(BM_Custom_ReverseIterate)->Range(1 << 10, 1 << 20);
-BENCHMARK(BM_Std_ReverseIterate)->Range(1 << 10, 1 << 20);
+BENCHMARK(BM_Custom_ReverseIterate)->Range(1 << 10, 1 << 18);
+BENCHMARK(BM_Std_ReverseIterate)->Range(1 << 10, 1 << 18);
 
 BENCHMARK_MAIN();
