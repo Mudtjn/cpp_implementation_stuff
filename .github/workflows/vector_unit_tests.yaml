@@ -10,6 +10,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    defaults: 
+      run: 
+        working-directory: ./custom_vector
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
