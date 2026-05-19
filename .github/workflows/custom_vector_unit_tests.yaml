@@ -1,4 +1,4 @@
-name: Unit Tests
+name: Custom Vector Unit Tests
 
 on:
   push:
