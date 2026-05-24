@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 namespace CustomSmartPointers {
     //////////////////// UNIQUE PTR ////////////////////////////
@@ -18,14 +19,24 @@ namespace CustomSmartPointers {
         explicit UniquePtr(pointer p) noexcept;
         // unique_ptr( pointer p, /* see below */ d1 ) noexcept; 
         // unique_ptr( pointer p, /* see below */ d2 ) noexcept;
-        template <class E> 
-        UniquePtr(UniquePtr<T, E>&& u) noexcept;
+        
+        // to make this constructor convertible 
+        // and add checks , need template on source pointer type as well 
+        template <class U, class E, 
+            std::enable_if_t<std::is_convertible_v<U*, T*> &&
+            std::is_constructible_v<Deleter, E&&>
+            , int> = 0
+        > 
+        UniquePtr(UniquePtr<U, E>&& u) noexcept (
+            std::is_nothrow_constructible_v<Deleter, E&&>
+        ); 
         // The class should be MoveAssignable and MoveConstructible
         // only movable if the unique_ptr is not const
         // The class should not be CopyAssignable and CopyConstructible
         UniquePtr(UniquePtr&) = delete; 
         UniquePtr(const UniquePtr&) = delete; 
-        UniquePtr(UniquePtr&& other_ptr); 
+        // UniquePtr(UniquePtr&& other_ptr); -> should be noexcept
+        UniquePtr(UniquePtr&& other) noexcept; 
         UniquePtr(const UniquePtr&& other_ptr) = delete; 
         //////////////// ASSIGNMENTS ////////////////////
         UniquePtr& operator=(UniquePtr&) = delete; 
@@ -57,7 +68,7 @@ namespace CustomSmartPointers {
         Deleter& get_deleter() noexcept; 
         const Deleter& get_deleter() const noexcept;  
         explicit operator bool() const noexcept; 
-        typename std::add_lvalue_reference<T>::type operator*() const noexcept(noexcept(*std::declval<pointer>())); 
+        T& operator*() const noexcept(noexcept(*std::declval<pointer>())); 
         pointer operator->() const noexcept;
         // provides access to elements of array managed by a unique_ptr 
         T& operator[](std::size_t i) const; 
@@ -91,15 +102,15 @@ namespace CustomSmartPointers {
         : ptr(p), deleter() {}
 
     template <class T, class Deleter>
-    template <class E> 
-    UniquePtr<T, Deleter>::UniquePtr(UniquePtr<T, E>&& u) noexcept
-        : ptr(u.ptr),
-        // here std::forward is needed 
-        // because if u.get_deleter() passed directly
-        // it would take it as lvalue reference, calling copy 
-        // breaks move semantics
-        // making this constructor expensive  
-        deleter(std::forward<E>(u.get_deleter())) 
+    template <class U, class E, 
+            std::enable_if_t<std::is_convertible_v<U*, T*> &&
+            std::is_constructible_v<Deleter, E&&>
+            , int>>  
+    UniquePtr<T, Deleter>::UniquePtr(UniquePtr<U, E>&& u) noexcept (
+            std::is_nothrow_constructible_v<Deleter, E&&>
+    ) 
+        : ptr(u.release()),
+        deleter(std::move(u.get_deleter()))
     {}
     
     // Value type constructor cannot exist for unique_ptr
@@ -110,17 +121,33 @@ namespace CustomSmartPointers {
     //     deleter = std::default_delete<T>();  
     // }
     ///////////////////// ASSIGNMENTS //////////////////
+    // INITIAL IMPLEMENTATION
+    // template<class T, class Deleter>
+    // UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& ptr1) {
+    //     if(ptr == ptr1) { -> compares ptr (T*) to ptr1 (UniquePtr) 
+    //         return ptr1; -> return *this is right option 
+    //     } 
+    //     ptr = ptr1; -> this assignment does not work 
+    // move or copy deleter from ptr1 not done
+    //     ptr1.get_deleter()(ptr1); 
+    //     ptr1 = nullptr; 
+    // }
     template<class T, class Deleter>
-    UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& ptr1) {
-        if(ptr == ptr1) {
-            return ptr1; 
+    UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& other) {
+        if (this != &other) {
+            reset(); 
+            ptr = other.release(); 
+            deleter = std::move(other.deleter);  
         } 
-        ptr = ptr1; 
+        return *this; 
     }
     ///////////////////// MEMBER FUNCTIONS ////////////////
     template<class T, class Deleter>
     UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(std::nullptr_t) noexcept {
-        get_deleter()(ptr); 
+        //  wrong implementation
+        // get_deleter()(ptr); 
+        reset(); 
+        return *this;
     } 
     /////////////////// GETTERS //////////////////////
     template<class T, class Deleter>
@@ -139,7 +166,7 @@ namespace CustomSmartPointers {
     } 
 
     template<class T, class Deleter>
-    typename std::add_lvalue_reference<T>::type UniquePtr<T, Deleter>::operator*() 
+    T& UniquePtr<T, Deleter>::operator*() 
         const noexcept(noexcept(*std::declval<pointer>())) 
     {
         return *ptr; 
@@ -151,9 +178,52 @@ namespace CustomSmartPointers {
     // provides access to elements of array managed by a unique_ptr 
     template<class T, class Deleter>
     T& UniquePtr<T, Deleter>::operator[](std::size_t i) const {
-        return ptr; 
+        return ptr[i]; 
     } 
 
+    //////////////// MODIFIERS /////////////////////
+    /**
+        releases the managed ownership and then get() returns 
+        nullptr
+    */
+    template<class T, class Deleter>
+    UniquePtr<T, Deleter>::pointer UniquePtr<T, Deleter>::release() noexcept {
+        pointer return_ptr = ptr; 
+        ptr = nullptr; 
+        return return_ptr; 
+    }
+    /** 
+    assigns new value to the ptr
+    */ 
+    template<class T, class Deleter>
+    void UniquePtr<T, Deleter>::reset(pointer other_ptr) noexcept {
+        pointer old_ptr = ptr; 
+        ptr = other_ptr; 
+        if(old_ptr != nullptr) {
+            get_deleter()(old_ptr); 
+        }
+    }
+    template<class T, class Deleter>
+    template<class U>
+    void UniquePtr<T, Deleter>::reset(U ptr) noexcept {
+        reset(static_cast<pointer>(ptr)); 
+    } 
+    template<class T, class Deleter>
+    void UniquePtr<T, Deleter>::reset(std::nullptr_t) noexcept {
+        reset(pointer()); 
+    } 
+    /** swaps with another uniqueptr */
+    template<class T, class Deleter>
+    void UniquePtr<T, Deleter>::swap(UniquePtr& other) noexcept {
+        std::swap(ptr, other.ptr); 
+        std::swap(deleter, other.deleter);     
+    }
+
+    /////////// NON-MEMBER FUNCTIONS /////////////////////////
+    template <class T, class Deleter, class... Args>
+    UniquePtr<T, Deleter> make_unique(Args&&... args) {
+        return UniquePtr<T, Deleter>(new T(std::forward<Args>(args)...)); 
+    }
     /////////////////////////////////////////////////////////
 }; 
 
