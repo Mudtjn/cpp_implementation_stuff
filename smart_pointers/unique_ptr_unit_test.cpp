@@ -8,7 +8,7 @@ struct MockObject {
 }; 
 
 ////////////////////// BASIC INTERFACE TEST ///////////////
-TEST(CustomUniquePtrTest, CheckIfPtrDestructorCalled) {
+TEST(SmartPointerTests, CheckIfPtrDestructorCalled) {
     isDeleted = false;
     {
         UniquePtr<MockObject> ptr(new MockObject()); 
@@ -16,7 +16,7 @@ TEST(CustomUniquePtrTest, CheckIfPtrDestructorCalled) {
     EXPECT_TRUE(isDeleted); 
 }
 
-TEST(CustomUniquePtrTest, CheckIfUniquePtrExistsUniqeuely) {
+TEST(SmartPointerTests, CheckIfUniquePtrExistsUniqeuely) {
     auto rawObject {new MockObject()}; 
     auto unique_ptr1 {UniquePtr<MockObject>(rawObject)};
     auto unique_ptr2 = std::move(unique_ptr1);  
