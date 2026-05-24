@@ -20,6 +20,9 @@ FetchContent_MakeAvailable(googletest) # Removed googlebenchmark
 add_executable(SmartPointerTests unique_ptr_unit_test.cpp)
 
 # Link directly to GTest and allow include access to the current directory
+add_library(smart_pointer_lib smart_pointers.hpp)
+target_include_directories(smart_pointer_lib PUBLIC ${CURRENT_CMAKE_SOURCE_DIR})
+
 target_link_libraries(SmartPointerTests PRIVATE GTest::gtest GTest::gtest_main)
 target_include_directories(SmartPointerTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
