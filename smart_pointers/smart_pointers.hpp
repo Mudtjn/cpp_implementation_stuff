@@ -139,7 +139,7 @@ namespace CustomSmartPointers {
     template<class T, class Deleter>
     UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& other) {
         if (this != &other) {
-            reset(); 
+            reset(ptr); 
             ptr = other.release(); 
             deleter = std::move(other.deleter);  
         } 
@@ -150,7 +150,7 @@ namespace CustomSmartPointers {
     UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(std::nullptr_t) noexcept {
         //  wrong implementation
         // get_deleter()(ptr); 
-        reset(); 
+        reset(ptr); 
         return *this;
     } 
     /////////////////// GETTERS //////////////////////
