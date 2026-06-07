@@ -150,7 +150,7 @@ namespace CustomSmartPointers {
     UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(std::nullptr_t) noexcept {
         //  wrong implementation
         // get_deleter()(ptr); 
-        reset(ptr); 
+        reset(nullptr); 
         return *this;
     } 
     /////////////////// GETTERS //////////////////////
