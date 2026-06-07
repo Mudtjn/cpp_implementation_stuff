@@ -112,7 +112,11 @@ namespace CustomSmartPointers {
         : ptr(u.release()),
         deleter(std::move(u.get_deleter()))
     {}
-    
+
+    template<class T, class Deleter>\
+    UniquePtr<T, Deleter>::UniquePtr(UniquePtr&& other) noexcept 
+        : ptr(other.release()), deleter(std::move(other.deleter))
+    {}
     // Value type constructor cannot exist for unique_ptr
     // this was for array initiliazation
     // template <class T, class Deleter>

@@ -15,17 +15,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest) # Removed googlebenchmark
 
-# Add your test executable directly
-# (Assuming your test file is named smart_pointers_test.cpp)
-add_executable(SmartPointerTests unique_ptr_unit_test.cpp)
+add_library(smart_pointers_lib smart_pointers.cpp)
+target_include_directories(smart_pointers_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Link directly to GTest and allow include access to the current directory
-add_library(smart_pointer_lib smart_pointers.hpp)
-target_include_directories(smart_pointer_lib PUBLIC ${CURRENT_CMAKE_SOURCE_DIR})
+add_executable(smart_pointer_unit_tests unique_ptr_unit_test.cpp)
+target_link_libraries(smart_pointer_unit_tests PRIVATE smart_pointers_lib GTest::gtest)
 
-target_link_libraries(SmartPointerTests PRIVATE GTest::gtest GTest::gtest_main)
-target_include_directories(SmartPointerTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Automatically discover the GTest cases
 include(GoogleTest)
-gtest_discover_tests(SmartPointerTests)
+gtest_discover_tests(smart_pointer_unit_tests)
+
+add_custom_target(check
+  COMMAND smart_pointer_unit_tests
+  DEPENDS smart_pointer_unit_tests
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Running unit tests"
+)
