@@ -14,6 +14,7 @@ namespace CustomSmartPointers {
         ///////////////// DESTRUCTORS ///////////////////
         ~UniquePtr(); 
         ///////////////// CONSTRUCTORS //////////////////
+        UniquePtr(pointer p, Deleter d) noexcept; 
         constexpr UniquePtr() noexcept;
         constexpr UniquePtr(std::nullptr_t) noexcept;  
         explicit UniquePtr(pointer p) noexcept;
@@ -41,7 +42,7 @@ namespace CustomSmartPointers {
         //////////////// ASSIGNMENTS ////////////////////
         UniquePtr& operator=(UniquePtr&) = delete; 
         UniquePtr& operator=(const UniquePtr&) = delete; 
-        UniquePtr& operator=(UniquePtr&&); 
+        UniquePtr& operator=(UniquePtr&&) noexcept; 
         UniquePtr& operator=(const UniquePtr&& other_ptr) = delete; 
 
         //////////////// MEMBER FUNCTIONS //////////////////
@@ -59,7 +60,7 @@ namespace CustomSmartPointers {
         void reset(pointer ptr = pointer()) noexcept; 
         template<class U>
         void reset(U ptr) noexcept; 
-        void reset(std::nullptr_t = nullptr) noexcept; 
+        void reset(std::nullptr_t) noexcept;  
         /** swaps with another uniqueptr */
         void swap(UniquePtr& other) noexcept; 
 
@@ -89,6 +90,10 @@ namespace CustomSmartPointers {
         }
     }
     ///////////////////// CONSTRUCTORS //////////////
+    template<class T, class Deleter> 
+    UniquePtr<T, Deleter>::UniquePtr(pointer p, Deleter d) noexcept 
+        : ptr(p), deleter(std::move(d)) {}
+
     template<class T, class Deleter>
     constexpr UniquePtr<T, Deleter>::UniquePtr() noexcept
         : ptr(nullptr), deleter() {}
@@ -113,7 +118,7 @@ namespace CustomSmartPointers {
         deleter(std::move(u.get_deleter()))
     {}
 
-    template<class T, class Deleter>\
+    template<class T, class Deleter>
     UniquePtr<T, Deleter>::UniquePtr(UniquePtr&& other) noexcept 
         : ptr(other.release()), deleter(std::move(other.deleter))
     {}
@@ -137,11 +142,17 @@ namespace CustomSmartPointers {
     //     ptr1 = nullptr; 
     // }
     template<class T, class Deleter>
-    UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& other) {
+    UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& other) noexcept {
         if (this != &other) {
-            reset(ptr); 
-            ptr = other.release(); 
-            deleter = std::move(other.deleter);  
+            reset(other.release());
+            
+            // deleter = std::move(other.deleter); 
+            // this had to be commented out as the 
+            // default lambda taking values is not default copy assignable
+            // and hence implicity not move assignable
+            
+            deleter.~Deleter(); 
+            new (&deleter) Deleter(std::move(other.deleter)); 
         } 
         return *this; 
     }
@@ -161,6 +172,10 @@ namespace CustomSmartPointers {
 
     template<class T, class Deleter>
     Deleter& UniquePtr<T, Deleter>::get_deleter() noexcept {
+        return deleter; 
+    }
+    template<class T, class Deleter>
+    const Deleter& UniquePtr<T, Deleter>::get_deleter() const noexcept {
         return deleter; 
     }
 
@@ -224,10 +239,23 @@ namespace CustomSmartPointers {
     }
 
     /////////// NON-MEMBER FUNCTIONS /////////////////////////
+    // usuaully 2 required , one with deleter defined 
+    // other deleter implicit 
+    template <class T, class... Args>
+    UniquePtr<T, std::default_delete<T>> make_unique(Args&&... args) {
+        return UniquePtr<T, std::default_delete<T>> (new T(std::forward<Args>(args)...)); 
+    }
+
     template <class T, class Deleter, class... Args>
-    UniquePtr<T, Deleter> make_unique(Args&&... args) {
-        return UniquePtr<T, Deleter>(new T(std::forward<Args>(args)...)); 
+    UniquePtr<T, Deleter> make_unique_with_deleter(Deleter d, Args&&... args) {
+        return UniquePtr<T, Deleter>(new T(std::forward<Args>(args)...), std::move(d)); 
     }
     /////////////////////////////////////////////////////////
+
+    ///////////////////// CUSTOM SWAP IMPLEMENTATION //////////////
+    template <class T, class Deleter>
+    void swap(UniquePtr<T, Deleter>& a, UniquePtr<T, Deleter>& b) noexcept {
+        a.swap(b); 
+    } 
 }; 
 
