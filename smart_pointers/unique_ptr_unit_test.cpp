@@ -1,6 +1,9 @@
 #include "smart_pointers.hpp" 
+#include "gtest/gtest.h"
 #include <gtest/gtest.h>
+#include <gtest/gtest-death-test.h>
 #include <memory>
+#include <stdexcept>
 using namespace CustomSmartPointers; 
 
 bool isDeleted = false; 
@@ -379,6 +382,57 @@ TEST(SmartPointerTests, ConvertingMoveAssign_ChainedAssignmentsWork) {
     EXPECT_EQ(d1.get(), nullptr);
     EXPECT_EQ(b1.get(), nullptr);
     EXPECT_EQ(b2.get(), raw);     // raw made it all the way through
+}
+
+TEST(SmartPointerTests, DoubleDeleteSafetyCheck) {
+    auto delete_count {0}; 
+    auto deleter = [&delete_count] (MockObject* raw) {
+        delete_count++; 
+        delete raw; 
+    }; 
+    {
+        auto x {make_unique_with_deleter<MockObject>(deleter)}; 
+        x.reset(); 
+    }
+    EXPECT_EQ(delete_count, 1); 
+}
+
+TEST(SmartPointerTests, DoubleDeleteSafety_ShouldNotBeCalledAfterRelease) {
+    auto delete_count {0}; 
+    auto deleter = [&delete_count] (MockObject* raw) {
+        delete_count++; 
+        delete raw; 
+    }; 
+    {
+        auto x {make_unique_with_deleter<MockObject>(deleter)}; 
+        auto raw {x.release()}; 
+    }
+    // Deleter must not be called after release 
+    EXPECT_EQ(delete_count, 0); 
+}
+
+//////////////////// EXCEPTION SAFE CONSTRUCTOR ///////////////////
+// Constructor should not create object if Unique_ptr assignment fails
+TEST(SmartPointerTests, ExceptionSafety_ThrowingDeleterCtorPropagates) {
+    struct ThrowingDeleter {
+        ThrowingDeleter() noexcept(false) {
+            throw std::runtime_error("deleter ctor threw");
+        }
+        void operator()(MockObject* p) { delete p; }
+    };
+
+    MockObject* raw = new MockObject();
+    auto threw {false};
+    try {
+        UniquePtr<MockObject, ThrowingDeleter> ptr(raw);
+    } catch (const std::runtime_error& e) {
+        threw = true;
+        // verify it's the right exception
+        EXPECT_STREQ(e.what(), "deleter ctor threw");
+    }
+
+    EXPECT_TRUE(threw);
+    delete raw;  // manual cleanup — ptr never took ownership
 }
 
 int main(int argc, char **argv) {

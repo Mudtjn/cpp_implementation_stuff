@@ -14,10 +14,12 @@ namespace CustomSmartPointers {
         ///////////////// DESTRUCTORS ///////////////////
         ~UniquePtr(); 
         ///////////////// CONSTRUCTORS //////////////////
-        UniquePtr(pointer p, Deleter d) noexcept; 
+        // If no except no try catch, the function directly 
+        // throws std::terminate
+        UniquePtr(pointer p, Deleter d) noexcept(std::is_nothrow_default_constructible_v<Deleter>); 
         constexpr UniquePtr() noexcept;
         constexpr UniquePtr(std::nullptr_t) noexcept;  
-        explicit UniquePtr(pointer p) noexcept;
+        explicit UniquePtr(pointer p) noexcept(std::is_nothrow_default_constructible_v<Deleter>);
         // unique_ptr( pointer p, /* see below */ d1 ) noexcept; 
         // unique_ptr( pointer p, /* see below */ d2 ) noexcept;
         
@@ -91,7 +93,8 @@ namespace CustomSmartPointers {
     }
     ///////////////////// CONSTRUCTORS //////////////
     template<class T, class Deleter> 
-    UniquePtr<T, Deleter>::UniquePtr(pointer p, Deleter d) noexcept 
+    UniquePtr<T, Deleter>::UniquePtr(pointer p, Deleter d) 
+    noexcept(std::is_nothrow_default_constructible_v<Deleter>) 
         : ptr(p), deleter(std::move(d)) {}
 
     template<class T, class Deleter>
@@ -103,7 +106,8 @@ namespace CustomSmartPointers {
         : ptr(nullptr), deleter() {}
 
     template<class T, class Deleter>
-    UniquePtr<T, Deleter>::UniquePtr(pointer p) noexcept
+    UniquePtr<T, Deleter>::UniquePtr(pointer p) 
+    noexcept(std::is_nothrow_default_constructible_v<Deleter>)
         : ptr(p), deleter() {}
 
     template <class T, class Deleter>
