@@ -15,12 +15,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest)
 
-# Library for the encoder/decoder helpers
-add_library(custom_tokenizer_lib encoder_decoder_helper.cpp)
+# Library for the encoder/decoder helpers and BPETokenizer
+add_library(custom_tokenizer_lib encoder_decoder_helper.cpp bpe_tokenizer.cpp)
 target_include_directories(custom_tokenizer_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Unit tests executable
-add_executable(custom_tokenizer_unit_tests test/encoder_decoder_test.cpp)
+add_executable(custom_tokenizer_unit_tests test/encoder_decoder_test.cpp test/bpe_tokenizer_test.cpp)
 target_link_libraries(custom_tokenizer_unit_tests PRIVATE custom_tokenizer_lib GTest::gtest)
 
 include(GoogleTest)
@@ -34,5 +34,9 @@ add_custom_target(check
   COMMENT "Running custom tokenizer unit tests"
 )
 
+# Copy corpus.txt to build directory so tokenizer_trainer can find it
+configure_file(corpus.txt corpus.txt COPYONLY)
+
 # Trainer executable
 add_executable(tokenizer_trainer tokenizer_trainer.cpp)
+target_link_libraries(tokenizer_trainer PRIVATE custom_tokenizer_lib)
