@@ -9,5 +9,8 @@ int main() {
     for(auto x: vec) std::cout << static_cast<int>(x) << ", " ;  
     std::cout << "]" << std::endl; 
 
+    auto decodedStringFromVec { encoderDecoder.decode(vec) }; 
+    encoderDecoder.print_u32_string(decodedStringFromVec) ; 
+
     return 0; 
 } 

@@ -1,7 +1,13 @@
 #include "encoder_decoder_helper.hpp"
+#include <stdexcept>
+#include <iostream>
 
-uint32_t EncoderDecoder::code_point_to_number(char32_t x) {
+uint32_t EncoderDecoder::char_to_code_point(char32_t x) {
     return static_cast<uint32_t>(x);
+}
+
+char32_t EncoderDecoder::code_point_to_char(uint32_t x) {
+    return static_cast<char32_t>(x); 
 }
 
 std::vector<uint8_t> EncoderDecoder::encode_utf8(uint32_t cp) {
@@ -36,46 +42,60 @@ std::vector<uint8_t> EncoderDecoder::encode(const std::u32string& str) {
     return ans; 
 }
 
+char32_t EncoderDecoder::decode_utf8(const std::vector<uint8_t> &vec, uint32_t &index) {
+    if (index >= vec.size()) {
+        throw std::runtime_error("Index out of bounds in decode_utf8");
+    }
+
+    // get the number of bytes involved in making character
+    auto numBytesInCharacter {0}; 
+    uint32_t codePoint {};
+    if ((vec[index] & 0x80) == 0){ 
+        numBytesInCharacter = 1;
+        codePoint = vec[index] & 0x7F; 
+    } 
+    else if ((vec[index] & 0xE0) == 0xC0) {
+        numBytesInCharacter = 2;
+        codePoint = vec[index] & 0x1F; 
+    }
+    else if((vec[index] & 0xF0) == 0xE0) {
+        numBytesInCharacter = 3;
+        codePoint = vec[index] & 0x0F; 
+    } 
+    else if((vec[index] & 0xF8) == 0xF0) {
+        numBytesInCharacter = 4;
+        codePoint = vec[index] & 0x07; // Fixed mask from 0x01 to 0x07 to extract all 3 bits of data
+    } 
+    else {
+        throw std::runtime_error("Invalid character format for utf-8"); // Fixed missing throw keyword
+    }
+    
+    for (auto it {1}; it < numBytesInCharacter; it++) {
+        if (index + it >= vec.size()) {
+            throw std::runtime_error("Truncated UTF-8 sequence"); // Fixed truncation out-of-bounds safety
+        }
+        uint8_t nextByte = vec[index + it];
+        if ((nextByte & 0xC0) != 0x80) {
+            throw std::runtime_error("Invalid UTF-8 continuation byte"); // Validation of continuation bytes
+        }
+        codePoint = (codePoint << 6) | (nextByte & 0x3F); 
+    }
+    index += numBytesInCharacter; 
+    return code_point_to_char(codePoint); 
+}
+
 std::u32string EncoderDecoder::decode(const std::vector<uint8_t>& vec) {
     std::u32string ans;
-    size_t i = 0;
-    while (i < vec.size()) {
-        uint32_t cp = 0;
-        uint8_t b1 = vec[i];
-        if (b1 <= 0x7F) {
-            cp = b1;
-            i += 1;
-        } else if ((b1 & 0xE0) == 0xC0) {
-            if (i + 1 < vec.size()) {
-                uint8_t b2 = vec[i + 1];
-                cp = ((b1 & 0x1F) << 6) | (b2 & 0x3F);
-                i += 2;
-            } else {
-                break; // Malformed UTF-8, stop decoding
-            }
-        } else if ((b1 & 0xF0) == 0xE0) {
-            if (i + 2 < vec.size()) {
-                uint8_t b2 = vec[i + 1];
-                uint8_t b3 = vec[i + 2];
-                cp = ((b1 & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
-                i += 3;
-            } else {
-                break; // Malformed UTF-8, stop decoding
-            }
-        } else if ((b1 & 0xF8) == 0xF0) {
-            if (i + 3 < vec.size()) {
-                uint8_t b2 = vec[i + 1];
-                uint8_t b3 = vec[i + 2];
-                uint8_t b4 = vec[i + 3];
-                cp = ((b1 & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F);
-                i += 4;
-            } else {
-                break; // Malformed UTF-8, stop decoding
-            }
-        } else {
-            i += 1; // Skip invalid start byte
-        }
-        ans.push_back(static_cast<char32_t>(cp));
+    uint32_t index {0}; 
+    while (index < vec.size()) { // Refactored from do-while to while to prevent out-of-bounds access on empty vectors
+        ans += decode_utf8(vec, index); 
     }
     return ans;
+}
+
+void EncoderDecoder::print_u32_string(std::u32string u32_str) {
+    // Avoid deprecated and compiler-dependent std::wstring_convert/<codecvt>
+    std::vector<uint8_t> bytes = encode(u32_str);
+    std::string utf8_str(bytes.begin(), bytes.end());
+    std::cout << utf8_str << std::endl;
 }
